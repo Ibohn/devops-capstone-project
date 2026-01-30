@@ -12,6 +12,7 @@ from tests.factories import AccountFactory
 from service.common import status  # HTTP Status Codes
 from service.models import db, Account, init_db
 from service.routes import app
+from service import talisman
 
 DATABASE_URI = os.getenv(
     "DATABASE_URI", "postgresql://postgres:postgres@localhost:5432/postgres"
@@ -35,6 +36,9 @@ class TestAccountService(TestCase):
         app.logger.setLevel(logging.CRITICAL)
         init_db(app)
 
+        # Disable HTTPS redirect during tests
+        talisman.force_https = False
+
     @classmethod
     def tearDownClass(cls):
         pass
@@ -53,12 +57,12 @@ class TestAccountService(TestCase):
 
     def test_404_not_found(self):
         """It should return 404_NOT_FOUND"""
-        resp = self.client.get("/does-not-exist", environ_overrides=HTTPS_ENVIRON)
+        resp = self.client.get("/does-not-exist")
         self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_405_method_not_allowed(self):
         """It should return 405_METHOD_NOT_ALLOWED"""
-        resp = self.client.put("/", json={}, environ_overrides=HTTPS_ENVIRON)
+        resp = self.client.put("/", json={})
         self.assertEqual(resp.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
 
     ##################################################################
@@ -69,11 +73,7 @@ class TestAccountService(TestCase):
         accounts = []
         for _ in range(count):
             account = AccountFactory()
-            response = self.client.post(
-                BASE_URL,
-                json=account.serialize(),
-                environ_overrides=HTTPS_ENVIRON,
-            )
+            response = self.client.post(BASE_URL, json=account.serialize())
             self.assertEqual(
                 response.status_code,
                 status.HTTP_201_CREATED,
@@ -89,7 +89,7 @@ class TestAccountService(TestCase):
     ##################################################################
 
     def test_index(self):
-        resp = self.client.get("/", environ_overrides=HTTPS_ENVIRON)
+        resp = self.client.get("/")
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
 
     ##################################################################
@@ -113,7 +113,7 @@ class TestAccountService(TestCase):
         )
 
     def test_health(self):
-        resp = self.client.get("/health", environ_overrides=HTTPS_ENVIRON)
+        resp = self.client.get("/health")
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         data = resp.get_json()
         self.assertEqual(data["status"], "OK")
@@ -124,7 +124,6 @@ class TestAccountService(TestCase):
             BASE_URL,
             json=account.serialize(),
             content_type="application/json",
-            environ_overrides=HTTPS_ENVIRON,
         )
 
         self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
@@ -140,11 +139,7 @@ class TestAccountService(TestCase):
         self.assertEqual(data["date_joined"], str(account.date_joined))
 
     def test_bad_request(self):
-        resp = self.client.post(
-            BASE_URL,
-            json={"name": "bad"},
-            environ_overrides=HTTPS_ENVIRON,
-        )
+        resp = self.client.post(BASE_URL, json={"name": "bad"})
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_unsupported_media_type(self):
@@ -153,7 +148,6 @@ class TestAccountService(TestCase):
             BASE_URL,
             json=account.serialize(),
             content_type="text/html",
-            environ_overrides=HTTPS_ENVIRON,
         )
         self.assertEqual(resp.status_code, status.HTTP_415_UNSUPPORTED_MEDIA_TYPE)
 
@@ -167,7 +161,6 @@ class TestAccountService(TestCase):
         resp = self.client.get(
             f"{BASE_URL}/{account.id}",
             content_type="application/json",
-            environ_overrides=HTTPS_ENVIRON,
         )
 
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
@@ -175,9 +168,5 @@ class TestAccountService(TestCase):
         self.assertEqual(data["name"], account.name)
 
     def test_get_account_not_found(self):
-        resp = self.client.get(
-            f"{BASE_URL}/0",
-            content_type="application/json",
-            environ_overrides=HTTPS_ENVIRON,
-        )
+        resp = self.client.get(f"{BASE_URL}/0", content_type="application/json")
         self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND)

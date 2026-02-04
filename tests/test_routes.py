@@ -12,12 +12,14 @@ from tests.factories import AccountFactory
 from service.common import status  # HTTP Status Codes
 from service.models import db, Account, init_db
 from service.routes import app
+from service import talisman
 
 DATABASE_URI = os.getenv(
     "DATABASE_URI", "postgresql://postgres:postgres@localhost:5432/postgres"
 )
 
 BASE_URL = "/accounts"
+HTTPS_ENVIRON = {"wsgi.url_scheme": "https"}
 
 
 ######################################################################
@@ -33,6 +35,9 @@ class TestAccountService(TestCase):
         app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URI
         app.logger.setLevel(logging.CRITICAL)
         init_db(app)
+
+        # Disable HTTPS redirect during tests
+        talisman.force_https = False
 
     @classmethod
     def tearDownClass(cls):
@@ -87,6 +92,26 @@ class TestAccountService(TestCase):
         resp = self.client.get("/")
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
 
+    ##################################################################
+    # Security Headers Test (TDD)
+    ##################################################################
+
+    def test_security_headers(self):
+        """It should include security headers when using HTTPS"""
+        resp = self.client.get("/", environ_overrides=HTTPS_ENVIRON)
+
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(resp.headers.get("X-Frame-Options"), "SAMEORIGIN")
+        self.assertEqual(resp.headers.get("X-Content-Type-Options"), "nosniff")
+        self.assertEqual(
+            resp.headers.get("Content-Security-Policy"),
+            "default-src 'self'; object-src 'none'",
+        )
+        self.assertEqual(
+            resp.headers.get("Referrer-Policy"),
+            "strict-origin-when-cross-origin",
+        )
+
     def test_health(self):
         resp = self.client.get("/health")
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
@@ -98,7 +123,7 @@ class TestAccountService(TestCase):
         resp = self.client.post(
             BASE_URL,
             json=account.serialize(),
-            content_type="application/json"
+            content_type="application/json",
         )
 
         self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
@@ -122,7 +147,7 @@ class TestAccountService(TestCase):
         resp = self.client.post(
             BASE_URL,
             json=account.serialize(),
-            content_type="text/html"
+            content_type="text/html",
         )
         self.assertEqual(resp.status_code, status.HTTP_415_UNSUPPORTED_MEDIA_TYPE)
 
@@ -135,7 +160,7 @@ class TestAccountService(TestCase):
 
         resp = self.client.get(
             f"{BASE_URL}/{account.id}",
-            content_type="application/json"
+            content_type="application/json",
         )
 
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
@@ -143,8 +168,5 @@ class TestAccountService(TestCase):
         self.assertEqual(data["name"], account.name)
 
     def test_get_account_not_found(self):
-        resp = self.client.get(
-            f"{BASE_URL}/0",
-            content_type="application/json"
-        )
+        resp = self.client.get(f"{BASE_URL}/0", content_type="application/json")
         self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND)

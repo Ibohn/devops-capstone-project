@@ -16,6 +16,7 @@ spec:
     - name: pipeline-workspace
 
   tasks:
+
     # --- CLONE TASK ---
     - name: clone
       taskRef:
@@ -45,17 +46,20 @@ spec:
       workspaces:
         - name: source
           workspace: pipeline-workspace
-          
-    - name: test
+
+    # --- TEST TASK (PARALLEL WITH LINT) ---
+    - name: tests
       runAfter:
-        - lint
+        - clone
       taskRef:
         name: nose
       workspaces:
         - name: source
           workspace: pipeline-workspace
       params:
-        - name: args
-          value: "-v --with-spec --spec-color"
         - name: database_uri
           value: "sqlite:///test.db"
+        - name: args
+          value: "-v --with-spec --spec-color"
+          runAfter:
+        - clone

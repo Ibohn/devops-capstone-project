@@ -45,4 +45,17 @@ spec:
       workspaces:
         - name: source
           workspace: pipeline-workspace
-
+          
+    - name: test
+      runAfter:
+        - lint
+      taskRef:
+        name: nose
+      workspaces:
+        - name: source
+          workspace: pipeline-workspace
+      params:
+        - name: args
+          value: "-v --with-spec --spec-color"
+        - name: database_uri
+          value: "sqlite:///test.db"

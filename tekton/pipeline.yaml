@@ -34,7 +34,7 @@ spec:
         - name: output
           workspace: pipeline-workspace
 
-    # --- LINT TASK ---
+    # --- LINT TASK (runs after clone) ---
     - name: lint
       runAfter:
         - clone
@@ -49,7 +49,7 @@ spec:
         - name: source
           workspace: pipeline-workspace
 
-    # --- TESTS TASK (parallel with lint) ---
+    # --- TESTS TASK (runs after clone, in parallel with lint) ---
     - name: tests
       runAfter:
         - clone
@@ -64,7 +64,7 @@ spec:
         - name: args
           value: "-v --with-spec --spec-color"
 
-    # --- BUILD TASK (after lint + tests) ---
+    # --- BUILD TASK (waits for lint + tests) ---
     - name: build
       runAfter:
         - tests
@@ -78,3 +78,24 @@ spec:
       params:
         - name: IMAGE
           value: "$(params.build-image)"
+
+    # --- DEPLOY TASK (runs after build) ---
+    - name: deploy
+      runAfter:
+        - build
+      taskRef:
+        name: openshift-client
+        kind: ClusterTask
+      workspaces:
+        - name: manifest-dir
+          workspace: pipeline-workspace
+      params:
+        - name: SCRIPT
+          value: |
+            echo "Updating manifest..."
+            sed -i "s|IMAGE_NAME_HERE|$(params.build-image)|g" deploy/deployment.yaml
+            cat deploy/deployment.yaml
+            echo "Deploying to OpenShift..."
+            oc apply -f deploy/
+            oc get pods -l app=accounts
+

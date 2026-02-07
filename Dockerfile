@@ -1,6 +1,5 @@
-cat > Dockerfile <<'EOF'
 # Docker support for Account Service
-FROM python:3.11-slim
+FROM python:3.9-slim
 
 WORKDIR /app
 
@@ -18,4 +17,3 @@ EXPOSE 8080
 
 # Start the service (Gunicorn is typically used in this lab)
 CMD ["gunicorn", "--bind=0.0.0.0:8080", "service:app"]
-EOF

@@ -11,12 +11,14 @@ spec:
       type: string
       default: main
       description: The branch to clone
+    - name: build-image
+      type: string
+      description: The image to build and push
 
   workspaces:
     - name: pipeline-workspace
 
   tasks:
-
     # --- CLONE TASK ---
     - name: clone
       taskRef:
@@ -47,7 +49,7 @@ spec:
         - name: source
           workspace: pipeline-workspace
 
-    # --- TEST TASK (PARALLEL WITH LINT) ---
+    # --- TESTS TASK (parallel with lint) ---
     - name: tests
       runAfter:
         - clone
@@ -61,5 +63,18 @@ spec:
           value: "sqlite:///test.db"
         - name: args
           value: "-v --with-spec --spec-color"
-          runAfter:
-        - clone
+
+    # --- BUILD TASK (after lint + tests) ---
+    - name: build
+      runAfter:
+        - tests
+        - lint
+      taskRef:
+        name: buildah
+        kind: ClusterTask
+      workspaces:
+        - name: source
+          workspace: pipeline-workspace
+      params:
+        - name: IMAGE
+          value: "$(params.build-image)"
